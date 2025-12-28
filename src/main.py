@@ -42,13 +42,14 @@ def parse_silver(text: str, seen_in_screenshot: set):
         # ---- Gains ----
         if "you gained" in line.lower():
             match = re.search(r"gained.*?([\d,]+)\s*Silver", line, re.IGNORECASE)
-            timestamp_match = re.search(r"\[(\d{2}:\d{2}:\d{2})\]", line)
+            # More flexible timestamp pattern to handle OCR errors
+            timestamp_match = re.search(r"\[?(\d{1,2}[:.]\d{1,2}[:.]\d{1,2})\]?", line)
             if match:
                 number = int(match.group(1).replace(",", ""))
                 key = (
                     "gain",
                     number,
-                    normalized_line,
+                    timestamp_match.group(0) if timestamp_match else "",
                 )
 
                 if key not in seen_in_screenshot and key not in setForAllTime:
@@ -60,13 +61,13 @@ def parse_silver(text: str, seen_in_screenshot: set):
         # ---- Losses ----
         elif "you paid" in line.lower():
             match = re.search(r"paid.*?([\d,]+)\s*Guild\s*Tax", line, re.IGNORECASE)
-            timestamp_match = re.search(r"\[(\d{2}:\d{2}:\d{2})\]", line)
+            timestamp_match = re.search(r"\[?(\d{1,2}[:.]\d{1,2}[:.]\d{1,2})\]?", line)
             if match:
                 number = int(match.group(1).replace(",", ""))
                 key = (
                     "loss",
                     number,
-                    normalized_line,
+                    timestamp_match.group(0) if timestamp_match else "",
                 )
 
                 if key not in seen_in_screenshot and key not in setForAllTime:
@@ -81,13 +82,18 @@ print("Starting live silver tracker... Ctrl+C to stop")
 while True:
     # 1️ Capture chat region
     screenshot = pyautogui.screenshot(region=chat_region)
-    # 2️ Preprocess for OCR
+    screenshot.save("debug_screenshot.png")  # for debugging
+    # 2️ Preprocess for OCR - gentler preprocessing to preserve timestamps
     image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+    # Apply contrast enhancement instead of harsh thresholding
+    gray = cv2.equalizeHist(gray)
+    # Denoise
+    gray = cv2.fastNlMeansDenoising(gray, h=10)
 
-    # 3 OCR
-    text = pytesseract.image_to_string(Image.fromarray(gray))
+    # 3 OCR with custom config for better accuracy
+    custom_config = r"--oem 3 --psm 6"
+    text = pytesseract.image_to_string(Image.fromarray(gray), config=custom_config)
 
     # 4️ Parse silver
     seen_in_screenshot = set()  # temporary set for this screenshot
@@ -102,3 +108,5 @@ while True:
 
     # 5️ Wait before next update
     time.sleep(update_interval)
+
+
