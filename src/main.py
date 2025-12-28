@@ -28,17 +28,11 @@ def parse_silver(text: str, seen_in_screenshot: set):
     global total_silver
     global setForAllTime
 
-    print("Parse Silver Method Starts")
-    print("----" * 10)
     for line in text.splitlines():
         line = line.strip()
         if not line:
             continue
 
-        # ---- Normalize line to generate a robust key ----
-        normalized_line = re.sub(r"[^a-zA-Z0-9]+", "", line.lower())
-        random_id = generate_random_id()
-        normalized_line += random_id
         # ---- Gains ----
         if "you gained" in line.lower():
             match = re.search(r"gained.*?([\d,]+)\s*Silver", line, re.IGNORECASE)
@@ -49,14 +43,14 @@ def parse_silver(text: str, seen_in_screenshot: set):
                 key = (
                     "gain",
                     number,
-                    timestamp_match.group(0) if timestamp_match else "",
+                    timestamp_match.group(1) if timestamp_match else "",
                 )
 
                 if key not in seen_in_screenshot and key not in setForAllTime:
                     seen_in_screenshot.add(key)
                     setForAllTime.add(key)
                     total_silver += number
-                    print(f"[GAIN] {number} → Total: {total_silver}")
+                    print(f"✅ [GAIN] +{number:,} Silver")
 
         # ---- Losses ----
         elif "you paid" in line.lower():
@@ -67,46 +61,56 @@ def parse_silver(text: str, seen_in_screenshot: set):
                 key = (
                     "loss",
                     number,
-                    timestamp_match.group(0) if timestamp_match else "",
+                    timestamp_match.group(1) if timestamp_match else "",
                 )
 
                 if key not in seen_in_screenshot and key not in setForAllTime:
                     seen_in_screenshot.add(key)
                     setForAllTime.add(key)
                     total_silver -= number
-                    print(f"[LOSS] {number} → Total: {total_silver}")
+                    print(f"❌ [LOSS] -{number:,} Silver")
 
 
 # ---- MAIN LOOP ----
-print("Starting live silver tracker... Ctrl+C to stop")
-while True:
-    # 1️ Capture chat region
-    screenshot = pyautogui.screenshot(region=chat_region)
-    screenshot.save("debug_screenshot.png")  # for debugging
-    # 2️ Preprocess for OCR - gentler preprocessing to preserve timestamps
-    image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # Apply contrast enhancement instead of harsh thresholding
-    gray = cv2.equalizeHist(gray)
-    # Denoise
-    gray = cv2.fastNlMeansDenoising(gray, h=10)
+print("=" * 60)
+print("🪙  SILVER TRACKER STARTED  🪙".center(60))
+print("=" * 60)
+print("Press Ctrl+C to stop and see final results\n")
 
-    # 3 OCR with custom config for better accuracy
-    custom_config = r"--oem 3 --psm 6"
-    text = pytesseract.image_to_string(Image.fromarray(gray), config=custom_config)
+try:
+    while True:
+        # 1️ Capture chat region
+        screenshot = pyautogui.screenshot(region=chat_region)
+        screenshot.save("debug_screenshot.png")  # for debugging
+        # 2️ Preprocess for OCR - gentler preprocessing to preserve timestamps
+        image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # Apply contrast enhancement instead of harsh thresholding
+        gray = cv2.equalizeHist(gray)
+        # Denoise
+        gray = cv2.fastNlMeansDenoising(gray, h=10)
 
-    # 4️ Parse silver
-    seen_in_screenshot = set()  # temporary set for this screenshot
-    # persistent set for all time
+        # 3 OCR with custom config for better accuracy
+        custom_config = r"--oem 3 --psm 6"
+        text = pytesseract.image_to_string(Image.fromarray(gray), config=custom_config)
 
-    print("Seen in ScreenShotset:", seen_in_screenshot)
+        # 4️ Parse silver
+        seen_in_screenshot = set()  # temporary set for this screenshot
+        parse_silver(text, seen_in_screenshot)
 
-    parse_silver(text, seen_in_screenshot)
-    print("----" * 10)
-    print("Seen in ScreenshotSet after End:", seen_in_screenshot)
-    print("Parse Silver Method Ends")
+        # Display current total with nice formatting
+        print(f"\n💰 Current Total: {total_silver:,} Silver 💰\n")
 
-    # 5️ Wait before next update
-    time.sleep(update_interval)
+        # 5️ Wait before next update
+        time.sleep(update_interval)
 
-
+except KeyboardInterrupt:
+    # Final summary when user stops the program
+    print("\n" + "=" * 60)
+    print("📊  FINAL RESULTS  📊".center(60))
+    print("=" * 60)
+    print(f"\n🏆  Total Silver Earned: {total_silver:,} Silver")
+    print(f"📈  Total Transactions: {len(setForAllTime)}")
+    print("\n" + "=" * 60)
+    print("Thank you for using Silver Tracker!".center(60))
+    print("=" * 60 + "\n")
