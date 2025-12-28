@@ -5,6 +5,8 @@ import numpy as np
 from PIL import Image
 import pytesseract
 import re
+import secrets
+import string
 
 # ---- CONFIG ----
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
@@ -16,11 +18,18 @@ total_silver = 0
 setForAllTime = set()
 
 
+def generate_random_id(length=8):
+    chars = string.ascii_letters + string.digits
+    return "".join(secrets.choice(chars) for _ in range(length))
+
+
 # ---- SILVER PARSER ----
 def parse_silver(text: str, seen_in_screenshot: set):
     global total_silver
     global setForAllTime
 
+    print("Parse Silver Method Starts")
+    print("----" * 10)
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -28,7 +37,8 @@ def parse_silver(text: str, seen_in_screenshot: set):
 
         # ---- Normalize line to generate a robust key ----
         normalized_line = re.sub(r"[^a-zA-Z0-9]+", "", line.lower())
-
+        random_id = generate_random_id()
+        normalized_line += random_id
         # ---- Gains ----
         if "you gained" in line.lower():
             match = re.search(r"gained.*?([\d,]+)\s*Silver", line, re.IGNORECASE)
@@ -82,8 +92,7 @@ while True:
     # 4️ Parse silver
     seen_in_screenshot = set()  # temporary set for this screenshot
     # persistent set for all time
-    print("Parse Silver Method Starts")
-    print("----" * 10)
+
     print("Seen in ScreenShotset:", seen_in_screenshot)
 
     parse_silver(text, seen_in_screenshot)
